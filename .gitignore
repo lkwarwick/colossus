@@ -1,0 +1,16 @@
+.bash_history
+.bash_logout
+.bashrc
+.bash_profile
+.zshrc
+.profile
+.selected_editor
+.sudo_as_admin_successful
+.wget-hsts
+.gitconfig
+.cache/
+.config/
+.local/
+.dotnet/
+.vscode-server/
+.env
