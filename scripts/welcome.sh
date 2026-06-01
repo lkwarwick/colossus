@@ -16,4 +16,3 @@ echo -e "\e[1;37m  The Colossus is online. All systems operational.\e[0m"
 echo -e "\e[0;90m  $(date '+%A, %d %B %Y — %H:%M:%S')\e[0m"
 echo -e "\e[0;90m  Uptime:$(uptime -p | sed 's/up//')\e[0m"
 echo ""
-i
