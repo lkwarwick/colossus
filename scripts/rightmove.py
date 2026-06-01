@@ -120,6 +120,7 @@ def monitor_rightmove():
         "transactionType": "BUY",
         "displayLocationIdentifier": "Horsham.html",
         "numberOfPropertiesPerPage": "24",
+        "propertyTypes": "detached,semi-detached,terraced",
     }
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
@@ -209,3 +210,4 @@ def monitor_rightmove():
 
 if __name__ == "__main__":
     monitor_rightmove()
+
