@@ -19,3 +19,33 @@ Once cloned, you can run the setup script to add required logic to the `~/.bashr
 ```bash
 bash ~/scripts/setup.sh
 ```
+
+---
+
+## Scheduling Scripts
+
+### Raspberry Pi OS Lite (headless)
+
+To add a script to run on a schedule, edit the current user crontab:
+
+```bash
+crontab -e
+```
+
+Then add a line such as:
+
+```bash
+*/30 * * * * cd /home/pi/colossus && uv run scripts/rightmove.py >> /tmp/rightmove.log 2>&1
+```
+
+To remove all scheduled jobs:
+
+```bash
+crontab -r
+```
+
+To see what is currently set up:
+
+```bash
+crontab -l
+```
