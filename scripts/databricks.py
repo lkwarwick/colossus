@@ -28,7 +28,7 @@ Usage:
     ./databricks_release_notes_scraper.py
     ./databricks_release_notes_scraper.py --hours 24
     ./databricks_release_notes_scraper.py --feed-url https://docs.databricks.com/gcp/en/feed.xml
-    ./databricks_release_notes_scraper.py --dry-run   # print email instead of sending
+    ./databricks_release_notes_scraper.py --dry-run   # render HTML to data/databricks.html and open it in a browser tab
 """
 
 from __future__ import annotations
@@ -36,11 +36,14 @@ from __future__ import annotations
 import argparse
 import html
 import os
+import re
 import smtplib
+import webbrowser
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 
 import feedparser
 from dateutil import parser as dateutil_parser
@@ -50,6 +53,8 @@ from loguru import logger
 load_dotenv()
 
 DEFAULT_FEED_URL = "https://docs.databricks.com/aws/en/feed.xml"
+SUMMARY_MAX_CHARS = 300
+DRY_RUN_OUTPUT_PATH = Path("data/databricks.html")
 
 GMAIL_USER = os.environ.get("GMAIL_USER")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
@@ -61,7 +66,38 @@ class Article:
     title: str
     link: str
     published: datetime  # tz-aware UTC
-    summary: str
+    summary: str  # plain text, HTML stripped, already truncated
+
+
+# --------------------------------------------------------------------------
+# Text helpers
+# --------------------------------------------------------------------------
+
+def strip_html(raw: str, max_chars: int = SUMMARY_MAX_CHARS) -> str:
+    """Convert a raw (possibly HTML-laden) feed summary into clean plain text.
+
+    RSS feeds commonly ship <summary>/<description> as HTML (paragraphs,
+    bold, links, lists). We don't want to render that HTML directly (risk
+    of breaking the email's table layout) and we don't want to just
+    html.escape() it either (that shows literal tags to the reader). So we
+    strip tags, unescape entities, collapse whitespace, and truncate.
+    """
+    if not raw:
+        return ""
+
+    # Turn common block-level tags into text so words don't run together.
+    text = re.sub(r"<(p|div|br|li|/li|/p|/div)\s*/?>", " ", raw, flags=re.IGNORECASE)
+    # Drop every remaining tag.
+    text = re.sub(r"<[^>]+>", "", text)
+    # Decode entities like &amp; &#39; etc.
+    text = html.unescape(text)
+    # Collapse whitespace/newlines.
+    text = re.sub(r"\s+", " ", text).strip()
+
+    if len(text) > max_chars:
+        text = text[:max_chars].rsplit(" ", 1)[0].rstrip(",.;: ") + "…"
+
+    return text
 
 
 # --------------------------------------------------------------------------
@@ -110,7 +146,7 @@ def fetch_recent_articles(feed_url: str, hours: int = 24) -> list[Article]:
                     title=getattr(entry, "title", "").strip(),
                     link=getattr(entry, "link", "").strip(),
                     published=published_dt,
-                    summary=getattr(entry, "summary", "").strip(),
+                    summary=strip_html(getattr(entry, "summary", "")),
                 )
             )
 
@@ -268,6 +304,28 @@ def send_email(subject: str, html_body: str, text_body: str) -> None:
 
 
 # --------------------------------------------------------------------------
+# Dry-run preview
+# --------------------------------------------------------------------------
+
+def preview_html_in_browser(html_body: str, output_path: Path = DRY_RUN_OUTPUT_PATH) -> None:
+    """Write the rendered HTML email to disk and open it in a browser tab.
+
+    This lets you eyeball the actual rendered layout (colors, cards, links)
+    rather than the plaintext fallback.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(html_body, encoding="utf-8")
+    logger.info(f"Wrote rendered preview to {output_path.resolve()}")
+
+    opened = webbrowser.open(output_path.resolve().as_uri())
+    if not opened:
+        logger.warning(
+            "Could not open a browser automatically. "
+            f"Open this file manually: {output_path.resolve()}"
+        )
+
+
+# --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
 
@@ -275,7 +333,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--feed-url", default=DEFAULT_FEED_URL, help=f"RSS feed URL (default: {DEFAULT_FEED_URL})")
     parser.add_argument("--hours", type=int, default=24, help="Look-back window in hours from run time (default: 24)")
-    parser.add_argument("--dry-run", action="store_true", help="Print the email instead of sending it")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=f"Render the HTML email to {DRY_RUN_OUTPUT_PATH} and open it in a browser tab instead of sending it",
+    )
     parser.add_argument(
         "--send-if-empty",
         action="store_true",
@@ -294,7 +356,7 @@ def main() -> None:
     text_body = build_plaintext_email(articles, args.hours, args.feed_url)
 
     if args.dry_run:
-        print(text_body)
+        preview_html_in_browser(html_body)
         return
 
     if not articles and not args.send_if_empty:
