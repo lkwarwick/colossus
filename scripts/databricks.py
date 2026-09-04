@@ -10,14 +10,13 @@
 # ///
 """
 Scrape the Databricks release notes RSS feed and email a styled summary of
-everything published in the last 24 hours *from the moment the script runs*.
+everything published in the last 48 hours *from the moment the script runs*.
 
 Feed source:
     https://docs.databricks.com/aws/en/feed.xml
 
-Because the cutoff is always "now - 24h" (not "midnight" or "yesterday"),
-running this once a day on a schedule will not re-emit items you've already
-seen, as long as it runs on a roughly 24h cadence.
+Because the RSS feed timestamps entries at midnight UTC, a 48-hour window
+ensures an 08:00 daily run includes the previous day's releases.
 
 Env vars (.env or environment):
     GMAIL_USER            your.email@gmail.com
@@ -26,7 +25,7 @@ Env vars (.env or environment):
 
 Usage:
     ./databricks_release_notes_scraper.py
-    ./databricks_release_notes_scraper.py --hours 24
+    ./databricks_release_notes_scraper.py --hours 48
     ./databricks_release_notes_scraper.py --feed-url https://docs.databricks.com/gcp/en/feed.xml
     ./databricks_release_notes_scraper.py --dry-run   # render HTML to data/databricks.html and open it in a browser tab
 """
@@ -332,7 +331,7 @@ def preview_html_in_browser(html_body: str, output_path: Path = DRY_RUN_OUTPUT_P
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--feed-url", default=DEFAULT_FEED_URL, help=f"RSS feed URL (default: {DEFAULT_FEED_URL})")
-    parser.add_argument("--hours", type=int, default=24, help="Look-back window in hours from run time (default: 24)")
+    parser.add_argument("--hours", type=int, default=48, help="Look-back window in hours from run time (default: 48)")
     parser.add_argument(
         "--dry-run",
         action="store_true",
